@@ -132,12 +132,27 @@ body {
 }
 .cal-day.is-today {
   border: 2.5px solid #0046ff; font-weight: 800; position: relative;
+  box-shadow: 0 0 8px rgba(0,70,255,0.4), 0 0 20px rgba(0,70,255,0.2), 0 0 40px rgba(0,70,255,0.1);
+  animation: today-glow 2s ease-in-out infinite alternate;
+}
+@keyframes today-glow {
+  from { box-shadow: 0 0 8px rgba(0,70,255,0.4), 0 0 20px rgba(0,70,255,0.2), 0 0 40px rgba(0,70,255,0.1); }
+  to { box-shadow: 0 0 12px rgba(0,70,255,0.6), 0 0 28px rgba(0,70,255,0.35), 0 0 50px rgba(0,70,255,0.15); }
 }
 .cal-day.is-today::after {
   content: 'TODAY'; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
   font-size: 7px; font-weight: 800; color: #0046ff; letter-spacing: 0.5px;
+  text-shadow: 0 0 6px rgba(0,70,255,0.5);
 }
-.cal-day.is-today.selected::after { color: white; }
+.cal-day.is-today.selected::after { color: white; text-shadow: 0 0 6px rgba(255,255,255,0.5); }
+.cal-day.is-today.selected {
+  box-shadow: 0 0 12px rgba(0,70,255,0.5), 0 0 24px rgba(0,70,255,0.3), 0 2px 12px rgba(0,70,255,0.3);
+  animation: today-glow-selected 2s ease-in-out infinite alternate;
+}
+@keyframes today-glow-selected {
+  from { box-shadow: 0 0 12px rgba(0,70,255,0.5), 0 0 24px rgba(0,70,255,0.3), 0 2px 12px rgba(0,70,255,0.3); }
+  to { box-shadow: 0 0 16px rgba(0,70,255,0.7), 0 0 32px rgba(0,70,255,0.4), 0 2px 12px rgba(0,70,255,0.3); }
+}
 .cal-day.has-entry .dot {
   position: absolute; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; background: var(--primary);
 }
@@ -483,6 +498,10 @@ const MONTHS = [
   { year: 2026, month: 2 },
   { year: 2026, month: 3 },
   { year: 2026, month: 4 },
+  { year: 2026, month: 5 },
+  { year: 2026, month: 6 },
+  { year: 2026, month: 7 },
+  { year: 2026, month: 8 },
 ];
 let currentIdx = 0;
 let selectedDate = null;
