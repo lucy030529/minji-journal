@@ -115,8 +115,12 @@ body {
   display: flex; align-items: center; justify-content: space-between; margin-top: 4px;
 }
 .gantt-day-markers {
-  display: flex; justify-content: space-between; flex: 1;
-  font-size: 9px; color: var(--text-muted); padding: 0 2px;
+  position: relative; flex: 1; height: 14px;
+  font-size: 9px; color: var(--text-muted);
+}
+.gantt-day-markers span {
+  position: absolute; top: 0; transform: translateX(-50%);
+  white-space: nowrap;
 }
 .gantt-dday {
   font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; flex-shrink: 0; margin-left: 8px;
@@ -1114,12 +1118,19 @@ function renderGantt(year, month) {
     else if (diffDays <= 3) { ddayText = `D-${diffDays}`; ddayClass = 'urgent'; }
     else if (diffDays <= 7) { ddayText = `D-${diffDays}`; ddayClass = 'soon'; }
     else { ddayText = `D-${diffDays}`; ddayClass = 'ok'; }
-    // Day markers for this track
+    // Day markers for this track — positioned at center of each day slot to align with bars
     let markers = '';
-    for (let d = 1; d <= daysInMonth; d += Math.max(1, Math.floor(daysInMonth / 6))) {
-      markers += `<span>${d}</span>`;
+    const step = Math.max(1, Math.floor(daysInMonth / 6));
+    let lastD = 1;
+    for (let d = 1; d <= daysInMonth; d += step) {
+      const pos = ((d - 0.5) / daysInMonth * 100).toFixed(2);
+      markers += `<span style="left:${pos}%">${d}</span>`;
+      lastD = d;
     }
-    if (parseInt(markers.match(/<span>(\d+)<\/span>$/)[1]) !== daysInMonth) markers += `<span>${daysInMonth}</span>`;
+    if (lastD !== daysInMonth) {
+      const pos = ((daysInMonth - 0.5) / daysInMonth * 100).toFixed(2);
+      markers += `<span style="left:${pos}%">${daysInMonth}</span>`;
+    }
     h += `<div class="gantt-row">
       <div class="gantt-row-top">
         <div class="gantt-label"><div class="gantt-label-dot" style="background:${color}"></div>${dl.task}</div>
