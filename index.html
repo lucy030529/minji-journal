@@ -588,14 +588,14 @@ body {
 }
 .tl-item:hover { background: rgba(0,70,255,0.04); }
 .tl-time {
-  width: 72px; flex-shrink: 0; padding: 9px 0 9px 8px;
+  flex-shrink: 0; padding: 9px 0 9px 8px;
   display: flex; align-items: center; justify-content: center;
 }
 .tl-time-inner {
-  background: white; padding: 3px 0; border-radius: 6px;
+  background: white; padding: 3px 8px; border-radius: 6px;
   font-size: 13px; font-weight: 700; color: var(--primary);
   font-variant-numeric: tabular-nums;
-  width: 58px; text-align: center;
+  white-space: nowrap; text-align: center;
   border: 1px solid var(--border);
   letter-spacing: -0.3px;
 }
@@ -875,8 +875,7 @@ li.done {
   .section { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .timeline-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tl-act { font-size: 12px; padding: 8px 8px 8px 4px; word-break: break-word; }
-  .tl-time { width: 60px; }
-  .tl-time-inner { width: 50px; font-size: 11px; }
+  .tl-time-inner { font-size: 11px; }
   .card-grid { grid-template-columns: 1fr !important; }
   .search-input { font-size: 14px; }
   .gantt-section { padding: 12px; overflow-x: auto; }
@@ -922,8 +921,7 @@ li.done {
   .detail-header { padding: 14px 12px; }
   .detail-header .date { font-size: 18px; }
   .detail-body { padding: 12px 10px 14px; }
-  .tl-time { width: 52px; }
-  .tl-time-inner { width: 44px; font-size: 10px; }
+  .tl-time-inner { font-size: 10px; }
   .tl-act { font-size: 11px; }
   .tl-sub { font-size: 8px; }
   .chart-grid { grid-template-columns: 1fr !important; }
