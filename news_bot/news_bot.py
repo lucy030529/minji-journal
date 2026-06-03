@@ -99,8 +99,11 @@ def summarize(client, article):
     """기사 한 건을 한국어 2~3줄로 요약한다."""
     body = article["content"] or article["description"] or article["title"]
     prompt = (
-        "다음 뉴스 기사를 한국어로 핵심만 2~3문장으로 요약해줘. "
-        "불필요한 수식어 없이 사실 위주로, 존댓말로 작성해줘.\n\n"
+        "다음 뉴스 기사를 한국어로 요약해줘. 규칙:\n"
+        "- 핵심 내용을 2~3개의 불렛포인트로 정리\n"
+        "- 각 줄은 '- ' 로 시작\n"
+        "- 음슴체(예: '~함', '~됨', '~임', '~밝힘')로 작성\n"
+        "- 불필요한 수식어 없이 사실 위주로\n\n"
         f"제목: {article['title']}\n"
         f"내용: {body}"
     )
@@ -172,7 +175,7 @@ def build_message(client):
             parts.append(
                 f"\n<b>{i}. {title}</b>{src}\n"
                 f"{summary}\n"
-                f"🔗 <a href=\"{html.escape(art['url'])}\">원문 보기</a>"
+                f"🔗 {html.escape(art['url'])}"
             )
     return "\n".join(parts)
 
