@@ -1,4 +1,4 @@
-name: Daily News Telegram Bot
+name: Chosun Defense Machinery Daily News
 
 on:
   schedule:
@@ -20,10 +20,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r news_bot/requirements.txt
 
-      - name: Send daily news
+      - name: Send Chosun daily news
         env:
-          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python news_bot/news_bot.py
+        run: python news_bot/chosun_news_bot.py
