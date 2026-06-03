@@ -7,7 +7,8 @@ Claude 로 음슴체 불렛 요약 후 텔레그램으로 전송한다.
 
 특징:
   - 구글 뉴스 RSS(무료, API 키 불필요)로 카테고리별 검색 수집
-  - TradeWinds / Upstream 등 직접 RSS 피드도 함께 지정 가능
+  - 소스별로 수집 기간(hours)·개수 제한(limit)을 따로 지정 가능
+  - TradeWinds / Upstream 은 최근 24시간 기사를 제한 없이 전부 수집
   - 제목의 " - 출처", &nbsp; 등 HTML 찌꺼기 자동 정리
   - 카테고리(🚢조선 / 🛡️방산 / ⚙️기계)로 구분
   - 푸터('총 N건 ...') 없음
@@ -28,6 +29,7 @@ import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from urllib.parse import quote
 
 import requests
 from anthropic import Anthropic
@@ -42,11 +44,12 @@ CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 KST = timezone(timedelta(hours=9))
 WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
 
+# 소스에 "hours" 가 없을 때 적용할 기본 수집 기간(시간).
+DEFAULT_HOURS = 36
+
 
 def gnews(query):
     """구글 뉴스 RSS 검색 URL 생성 (한국어/한국 기준)."""
-    from urllib.parse import quote
-
     return (
         f"https://news.google.com/rss/search?q={quote(query)}"
         "&hl=ko&gl=KR&ceid=KR:ko"
@@ -54,46 +57,53 @@ def gnews(query):
 
 
 # 카테고리별 수집 설정.
-#   gnews: 구글 뉴스 검색어 목록 (OR 로 키워드 묶음)
-#   feeds: 직접 구독할 RSS 피드 URL 목록 (TradeWinds/Upstream RSS 등)
-#   limit: 이 카테고리에서 보낼 최대 기사 수
+#   label    : 카테고리 제목
+#   sources  : 소스 목록. 각 소스는 아래 키를 가짐
+#       - "gnews": 구글 뉴스 검색어  또는  "feed": 직접 RSS 피드 URL (둘 중 하나)
+#       - "limit": 보낼 최대 기사 수 (None = 무제한, 기간 내 전부 수집)
+#       - "hours": 수집 기간(시간). 생략 시 DEFAULT_HOURS
+#
+# ※ TradeWinds / Upstream 은 최근 24시간 기사를 limit 없이 전부 수집하도록 설정함.
 CATEGORIES = [
     {
         "label": "🚢 조선",
-        "gnews": [
-            gnews(
-                "조선소 OR HD현대중공업 OR 한화오션 OR 삼성중공업 OR HD현대미포 "
-                "OR LNG선 OR FLNG OR 컨테이너선 OR 선박 수주"
-            ),
-            gnews("site:tradewindsnews.com"),
-            gnews("site:upstreamonline.com"),
+        "sources": [
+            {
+                "gnews": (
+                    "조선소 OR HD현대중공업 OR 한화오션 OR 삼성중공업 OR HD현대미포 "
+                    "OR LNG선 OR FLNG OR 컨테이너선 OR 선박 수주"
+                ),
+                "limit": 8,
+            },
+            # TradeWinds: 최근 24시간 기사 전부 (개수 제한 없음)
+            {"gnews": "site:tradewindsnews.com", "limit": None, "hours": 24},
+            # Upstream: 최근 24시간 기사 전부 (개수 제한 없음)
+            {"gnews": "site:upstreamonline.com", "limit": None, "hours": 24},
         ],
-        "feeds": [
-            # 직접 RSS 피드가 있으면 여기에 추가 (예: RSS.app 으로 만든 피드 URL)
-        ],
-        "limit": 8,
     },
     {
         "label": "🛡️ 방산",
-        "gnews": [
-            gnews(
-                "방위산업 OR 한화에어로스페이스 OR 한국항공우주산업 OR LIG넥스원 "
-                "OR 현대로템 OR K9 자주포 OR K2 전차 OR 무기 수출"
-            ),
+        "sources": [
+            {
+                "gnews": (
+                    "방위산업 OR 한화에어로스페이스 OR 한국항공우주산업 OR LIG넥스원 "
+                    "OR 현대로템 OR K9 자주포 OR K2 전차 OR 무기 수출"
+                ),
+                "limit": 5,
+            },
         ],
-        "feeds": [],
-        "limit": 5,
     },
     {
         "label": "⚙️ 기계",
-        "gnews": [
-            gnews(
-                "두산에너빌리티 OR 변압기 OR 가스터빈 OR 발전설비 OR HD현대인프라코어 "
-                "OR 건설기계 OR 원전 기자재 OR 플랜트 기자재"
-            ),
+        "sources": [
+            {
+                "gnews": (
+                    "두산에너빌리티 OR 변압기 OR 가스터빈 OR 발전설비 OR HD현대인프라코어 "
+                    "OR 건설기계 OR 원전 기자재 OR 플랜트 기자재"
+                ),
+                "limit": 5,
+            },
         ],
-        "feeds": [],
-        "limit": 5,
     },
 ]
 
@@ -182,23 +192,37 @@ def parse_feed(url, since):
     return articles
 
 
-def collect(category, since):
-    """카테고리의 모든 피드를 모아 중복 제거 후 limit 만큼 반환."""
+def collect(category, now):
+    """카테고리의 모든 소스를 모아 중복 제거 후 반환.
+
+    소스마다 자체 수집 기간(hours)·개수 제한(limit)을 적용한다.
+    limit 이 None 이면 기간 내 기사를 전부 가져온다(TradeWinds/Upstream 용).
+    """
     seen, out = set(), []
-    for url in category["gnews"] + category["feeds"]:
+    for src in category["sources"]:
+        hours = src.get("hours", DEFAULT_HOURS)
+        since = now - timedelta(hours=hours)
+        url = gnews(src["gnews"]) if "gnews" in src else src["feed"]
         try:
-            for art in parse_feed(url, since):
-                key = re.sub(r"\W+", "", art["title"])[:40]
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append(art)
+            arts = parse_feed(url, since)
         except Exception as e:
             print(f"피드 수집 실패 ({url[:60]}...): {e}", file=sys.stderr)
-    # 최신순 정렬 후 limit
-    out.sort(key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
-             reverse=True)
-    return out[: category["limit"]]
+            continue
+        # 소스 내 최신순 정렬 후, limit 이 있으면 그만큼만
+        arts.sort(
+            key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+        if src.get("limit") is not None:
+            arts = arts[: src["limit"]]
+        # 카테고리 전체 기준 중복 제거
+        for art in arts:
+            key = re.sub(r"\W+", "", art["title"])[:40]
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(art)
+    return out
 
 
 # ---- 2. Claude 요약 (음슴체 불렛 3~4줄) ----------------------------------
@@ -231,13 +255,14 @@ def summarize(client, article):
 # ---- 3. 메시지 조립 + 전송 ----------------------------------------------
 
 
-def build_message(client, since):
+def build_message(client):
     now = datetime.now(KST)
     header = f"📅 {now:%Y.%m.%d} ({WEEKDAYS[now.weekday()]}) 조선/방산/기계 Daily News"
     parts = [f"<b>{header}</b>"]
 
+    now_utc = datetime.now(timezone.utc)
     for cat in CATEGORIES:
-        articles = collect(cat, since)
+        articles = collect(cat, now_utc)
         parts.append(f"\n\n<b>{cat['label']}</b>")
         if not articles:
             parts.append("\n· 새 기사 없음")
@@ -290,9 +315,8 @@ def send_telegram(text):
 
 def main():
     require_env()
-    since = datetime.now(timezone.utc) - timedelta(days=1, hours=12)  # 전일치
     client = Anthropic(api_key=ANTHROPIC_API_KEY)
-    message = build_message(client, since)
+    message = build_message(client)
     send_telegram(message)
     print("전송 완료")
 

@@ -63,32 +63,43 @@ python chosun_news_bot.py
 
 ## 5. 커스터마이징 — `chosun_news_bot.py` 의 `CATEGORIES`
 
-카테고리/검색어/기사 수를 직접 조절할 수 있습니다.
+카테고리 안에 **소스(sources)** 를 여러 개 두고, 소스마다
+수집 기간(`hours`)·개수 제한(`limit`)을 따로 줄 수 있습니다.
 
 ```python
 CATEGORIES = [
     {
         "label": "🚢 조선",
-        "gnews": [                      # 구글 뉴스 검색어 (OR 로 키워드 묶기)
-            gnews("HD현대중공업 OR 한화오션 OR 삼성중공업 OR LNG선 OR FLNG"),
-            gnews("site:tradewindsnews.com"),   # 특정 사이트만 검색
-            gnews("site:upstreamonline.com"),
+        "sources": [
+            # 일반 조선 키워드: 기본 기간(36h), 최대 8건
+            {"gnews": "HD현대중공업 OR 한화오션 OR 삼성중공업 OR LNG선 OR FLNG",
+             "limit": 8},
+
+            # TradeWinds: 최근 24시간 기사를 '전부' (limit=None → 무제한)
+            {"gnews": "site:tradewindsnews.com", "limit": None, "hours": 24},
+            {"gnews": "site:upstreamonline.com", "limit": None, "hours": 24},
+
+            # 직접 RSS 피드를 쓰려면 gnews 대신 feed 사용:
+            # {"feed": "https://rss.app/feeds/xxxx.xml", "limit": None, "hours": 24},
         ],
-        "feeds": [                      # 직접 RSS 피드 URL (RSS.app 등)
-            # "https://rss.app/feeds/xxxx.xml",
-        ],
-        "limit": 8,                     # 이 카테고리 최대 기사 수
     },
     # 🛡️ 방산 / ⚙️ 기계 ...
 ]
 ```
 
+| 소스 키 | 의미 |
+|---------|------|
+| `gnews` | 구글 뉴스 검색어 (OR 로 키워드 묶기, `site:도메인` 가능) |
+| `feed` | 직접 RSS 피드 URL (RSS.app 등) — `gnews` 대신 사용 |
+| `limit` | 보낼 최대 기사 수. **`None` = 기간 내 전부 수집** |
+| `hours` | 수집 기간(시간). 생략 시 `DEFAULT_HOURS`(36h) |
+
 | 하고 싶은 것 | 방법 |
 |--------------|------|
-| 키워드 추가/변경 | 해당 카테고리 `gnews` 의 검색어 수정 |
-| 특정 매체만 보기 | `gnews("site:도메인.com 키워드")` |
-| TradeWinds/Upstream RSS 직접 연결 | 그 카테고리 `feeds` 에 피드 URL 추가 |
-| 카테고리별 기사 수 | `limit` 값 변경 |
+| 특정 매체 24시간치 전부 받기 | 그 소스에 `"limit": None, "hours": 24` |
+| 키워드 추가/변경 | 소스의 `gnews` 검색어 수정 |
+| 카테고리/소스별 기사 수 | `limit` 값 변경 |
+| 수집 기간 조정 | 소스의 `hours` 또는 상단 `DEFAULT_HOURS` |
 | 요약 줄 수/말투 | `summarize()` 의 프롬프트 수정 |
 | 요약 모델 | `CLAUDE_MODEL` 환경변수 (기본 `claude-haiku-4-5-20251001`) |
 | 발송 시각 | `.github/workflows/chosun-daily-news.yml` 의 `cron` (UTC) |
