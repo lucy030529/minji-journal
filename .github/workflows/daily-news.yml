@@ -1,0 +1,29 @@
+name: Daily News Telegram Bot
+
+on:
+  schedule:
+    # 매일 07:00 KST = 22:00 UTC (전날). GitHub cron 은 UTC 기준.
+    - cron: "0 22 * * *"
+  workflow_dispatch: {}  # 깃허브에서 수동 실행 가능
+
+jobs:
+  send-news:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r news_bot/requirements.txt
+
+      - name: Send daily news
+        env:
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python news_bot/news_bot.py
