@@ -711,6 +711,27 @@ li.done {
 .donut-legend-name { flex: 1; }
 .donut-legend-count { font-weight: 600; color: var(--text-secondary); }
 
+/* Token Usage by Model */
+.tok-summary { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; }
+.tok-stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px; text-align: center; box-shadow: var(--shadow); }
+.tok-stat-num { font-size: 24px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+.tok-stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.tok-layout { display: grid; grid-template-columns: 280px 1fr; gap: 18px; align-items: start; }
+.tok-donut-card { padding: 24px; }
+.tok-bars-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; }
+.tok-bars-title { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+.tok-bar-row { margin-bottom: 16px; }
+.tok-bar-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.tok-bar-name { font-size: 13px; font-weight: 600; color: var(--text); word-break: break-all; }
+.tok-bar-val { font-size: 12px; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+.tok-bar-track { height: 12px; background: var(--accent-light); border-radius: 6px; overflow: hidden; }
+.tok-bar-fill { height: 100%; border-radius: 6px; transition: width 0.4s ease; }
+@media (max-width: 768px) {
+  .tok-layout { grid-template-columns: 1fr; }
+  .tok-summary { grid-template-columns: 1fr; }
+  .tok-stat-num { font-size: 20px; }
+}
+
 .people-right { display: flex; flex-direction: column; gap: 16px; }
 .person-stat-card {
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
@@ -949,6 +970,7 @@ li.done {
   <button class="tab-btn active" onclick="switchTab('calendar',this)">업무일지</button>
   <button class="tab-btn" onclick="switchTab('earnings',this)">1Q26 실적발표일정</button>
   <button class="tab-btn" onclick="switchTab('archive',this)">리서치 DB</button>
+  <button class="tab-btn" onclick="switchTab('tokens',this)">토큰 사용량</button>
 </div>
 
 <!-- ═══ TAB 1: Calendar ═══ -->
@@ -1059,6 +1081,49 @@ li.done {
 </div>
 </div>
 
+<!-- ═══ TAB: Token Usage by Model ═══ -->
+<div class="tab-content" id="tab-tokens">
+<div class="main-full" style="padding-top:24px;">
+  <div class="archive-section">
+    <div class="archive-header">
+      <h2 class="archive-title">TOKEN USAGE BY MODEL</h2>
+      <span class="archive-sub" id="tokensSub">모델별 토큰 사용량</span>
+    </div>
+    <div class="tok-summary">
+      <div class="tok-stat">
+        <div class="tok-stat-num" id="tokTotal">&ndash;</div>
+        <div class="tok-stat-label">총 토큰</div>
+      </div>
+      <div class="tok-stat">
+        <div class="tok-stat-num" id="tokModels">&ndash;</div>
+        <div class="tok-stat-label">모델 수</div>
+      </div>
+      <div class="tok-stat">
+        <div class="tok-stat-num" id="tokTop">&ndash;</div>
+        <div class="tok-stat-label">최다 사용 모델</div>
+      </div>
+    </div>
+    <div class="tok-layout">
+      <div class="donut-section tok-donut-card">
+        <h3>점유율</h3>
+        <div class="donut-wrap">
+          <canvas id="tokDonut" width="200" height="200"></canvas>
+          <div class="donut-center">
+            <div class="total-num" id="tokDonutTotal">&ndash;</div>
+            <div class="total-label">total</div>
+          </div>
+        </div>
+        <div class="donut-legend" id="tokDonutLegend"></div>
+      </div>
+      <div class="tok-bars-card">
+        <h3 class="tok-bars-title">모델별 사용량</h3>
+        <div id="tokBars"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
 <!-- Article Translation Modal -->
 <div class="article-modal-overlay" id="articleModal" onclick="if(event.target===this)closeArticle()">
   <div class="article-modal">
@@ -1132,6 +1197,105 @@ function switchTab(id, btn) {
 
   if (id === 'archive') renderArchive();
   if (id === 'earnings') renderEarnings();
+  if (id === 'tokens') renderTokenUsage();
+}
+
+// ══ TOKEN USAGE BY MODEL ══
+const TOKEN_USAGE = {
+  data: [
+    { date: "2026-05-11", model_permaslug: "openai/gpt-4o-2024-05-13", total_tokens: "12345678" },
+    { date: "2026-05-11", model_permaslug: "anthropic/claude-3.5-sonnet-20241022", total_tokens: "9876543" },
+    { date: "2026-05-11", model_permaslug: "other", total_tokens: "4321098" }
+  ],
+  meta: { as_of: "2026-05-12T02:00:00Z", end_date: "2026-05-11", start_date: "2026-04-12", version: "v1" }
+};
+const TOKEN_COLORS = ['#0046ff','#6366f1','#ec4899','#f59e0b','#10b981','#06b6d4','#64748b'];
+
+function tokModelLabel(slug) {
+  if (slug === 'other') return 'Other';
+  return slug.includes('/') ? slug.split('/').slice(1).join('/') : slug;
+}
+function tokModelVendor(slug) {
+  return slug.includes('/') ? slug.split('/')[0] : '';
+}
+function tokFmt(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return '' + n;
+}
+
+let tokRendered = false;
+function renderTokenUsage() {
+  // Aggregate tokens per model across all dates
+  const agg = {};
+  TOKEN_USAGE.data.forEach(d => {
+    const t = parseInt(d.total_tokens, 10) || 0;
+    agg[d.model_permaslug] = (agg[d.model_permaslug] || 0) + t;
+  });
+  const sorted = Object.entries(agg).sort((a, b) => b[1] - a[1]);
+  const total = sorted.reduce((s, e) => s + e[1], 0);
+
+  // Summary stats
+  document.getElementById('tokTotal').textContent = total.toLocaleString();
+  document.getElementById('tokModels').textContent = sorted.length;
+  document.getElementById('tokTop').textContent = sorted.length ? tokModelLabel(sorted[0][0]) : '–';
+  document.getElementById('tokDonutTotal').textContent = total ? tokFmt(total) : '–';
+
+  const m = TOKEN_USAGE.meta || {};
+  if (m.start_date && m.end_date) {
+    document.getElementById('tokensSub').textContent = `모델별 토큰 사용량 · ${m.start_date} ~ ${m.end_date}`;
+  }
+
+  // Donut
+  const canvas = document.getElementById('tokDonut');
+  if (canvas && total > 0) {
+    const ctx = canvas.getContext('2d');
+    const cx = 100, cy = 100, r = 80, lw = 28;
+    ctx.clearRect(0, 0, 200, 200);
+    let startAngle = -Math.PI / 2;
+    sorted.forEach(([slug, val], i) => {
+      const slice = (val / total) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+      ctx.strokeStyle = TOKEN_COLORS[i % TOKEN_COLORS.length];
+      ctx.lineWidth = lw;
+      ctx.stroke();
+      startAngle += slice;
+    });
+  }
+
+  // Donut legend
+  let legend = '';
+  sorted.forEach(([slug, val], i) => {
+    const pct = total ? Math.round(val / total * 100) : 0;
+    legend += `<div class="donut-legend-item">
+      <div class="donut-legend-dot" style="background:${TOKEN_COLORS[i % TOKEN_COLORS.length]}"></div>
+      <span class="donut-legend-name">${tokModelLabel(slug)}</span>
+      <span class="donut-legend-count">${pct}%</span>
+    </div>`;
+  });
+  document.getElementById('tokDonutLegend').innerHTML = legend;
+
+  // Bars
+  const max = sorted.length ? sorted[0][1] : 1;
+  let bars = '';
+  sorted.forEach(([slug, val], i) => {
+    const w = max ? (val / max * 100) : 0;
+    const pct = total ? (val / total * 100).toFixed(1) : '0.0';
+    const vendor = tokModelVendor(slug);
+    bars += `<div class="tok-bar-row">
+      <div class="tok-bar-head">
+        <span class="tok-bar-name">${tokModelLabel(slug)}${vendor ? ` <span style="color:var(--text-muted);font-weight:400;">${vendor}</span>` : ''}</span>
+        <span class="tok-bar-val">${val.toLocaleString()} · ${pct}%</span>
+      </div>
+      <div class="tok-bar-track">
+        <div class="tok-bar-fill" style="width:${w}%;background:${TOKEN_COLORS[i % TOKEN_COLORS.length]}"></div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('tokBars').innerHTML = bars || '<div style="color:var(--text-muted);font-size:13px;">데이터 없음</div>';
+  tokRendered = true;
 }
 
 // ══ EARNINGS SCHEDULE ══
